@@ -1,8 +1,8 @@
 from datetime import datetime
 from typing import Literal, Optional, List
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from app.schemas.candidate import CandidateCreate, CandidateOut
-from app.core.security import sanitize_string, sanitize_email
+from app.core.security import sanitize_string
 
 RoundType = Literal["screening", "technical", "managerial", "hr"]
 InterviewStatus = Literal["pending", "slots_found", "candidate_notified", "booked", "cancelled", "rescheduling"]
@@ -17,19 +17,15 @@ class InterviewRequestCreate(BaseModel):
     buffer_minutes: int = 15
     window_start: datetime
     window_end: datetime
-    preferred_timezone: str = "UTC"
-    recruiter_email: EmailStr
+    # Optional: the timezone used for working-hours/scheduling. Defaults to the
+    # candidate's timezone on the server if omitted. Not a required form field.
+    preferred_timezone: Optional[str] = None
     notes: Optional[str] = None
 
     @field_validator("job_title")
     @classmethod
     def sanitize_job_title(cls, v):
         return sanitize_string(v, 255)
-
-    @field_validator("recruiter_email")
-    @classmethod
-    def validate_recruiter_email(cls, v):
-        return sanitize_email(str(v))
 
     @field_validator("duration_minutes")
     @classmethod
@@ -38,12 +34,25 @@ class InterviewRequestCreate(BaseModel):
             raise ValueError("Duration must be 30, 45, 60, or 90 minutes")
         return v
 
+    @field_validator("buffer_minutes")
+    @classmethod
+    def validate_buffer(cls, v):
+        if v not in [0, 15, 30]:
+            raise ValueError("Buffer must be 0, 15, or 30 minutes")
+        return v
+
     @field_validator("required_panelist_ids")
     @classmethod
     def validate_panelists(cls, v):
         if not v:
             raise ValueError("At least one panelist is required")
         return v
+
+    @model_validator(mode="after")
+    def validate_window(self):
+        if self.window_end <= self.window_start:
+            raise ValueError("window_end must be after window_start")
+        return self
 
 
 class InterviewRequestUpdate(BaseModel):

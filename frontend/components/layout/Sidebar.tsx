@@ -1,7 +1,9 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import clsx from "clsx";
+import { getStoredUser, clearAuth, type AuthUser } from "@/lib/auth";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: "◈" },
@@ -13,6 +15,18 @@ const nav = [
 
 export default function Sidebar() {
   const path = usePathname();
+  const router = useRouter();
+  const [user, setUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    setUser(getStoredUser());
+  }, []);
+
+  const logout = () => {
+    clearAuth();
+    router.replace("/login");
+  };
+
   return (
     <aside className="w-56 shrink-0 h-screen sticky top-0 flex flex-col border-r border-white/[0.07] bg-white/[0.02] backdrop-blur-xl px-4 py-6">
       <div className="mb-8 px-2">
@@ -41,9 +55,24 @@ export default function Sidebar() {
           );
         })}
       </nav>
-      <div className="px-2 pt-4 border-t border-white/[0.07]">
+      <div className="px-2 pt-4 border-t border-white/[0.07] space-y-3">
+        {user && (
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-white/70 text-xs font-medium truncate">{user.name}</p>
+              <p className="text-white/30 text-[10px] uppercase tracking-wider">{user.role}</p>
+            </div>
+            <button
+              onClick={logout}
+              className="text-white/40 hover:text-white/80 text-xs underline shrink-0"
+            >
+              Sign out
+            </button>
+          </div>
+        )}
         <p className="text-white/20 text-xs">Powered by Llama 3.1 via Groq</p>
       </div>
     </aside>
   );
 }
+

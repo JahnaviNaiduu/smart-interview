@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session, joinedload
 from app.core.database import get_db
 from app.core.config import settings
+from app.core.auth import require_staff
 from app.models.booking import Booking
 from app.models.interview import InterviewRequest
 from app.models.availability_slot import AvailabilitySlot
@@ -69,7 +70,7 @@ def _do_confirm_booking(interview_id: str, slot_id: str, booking_id: str):
 
 
 @router.post("", response_model=BookingOut, status_code=201)
-def create_booking(payload: BookingCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def create_booking(payload: BookingCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), _=Depends(require_staff)):
     interview = db.query(InterviewRequest).options(
         joinedload(InterviewRequest.candidate),
     ).filter(InterviewRequest.id == payload.interview_request_id).first()
@@ -117,7 +118,7 @@ def get_booking_by_confirm_token(token: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{booking_id}", response_model=BookingDetailOut)
-def get_booking(booking_id: str, db: Session = Depends(get_db)):
+def get_booking(booking_id: str, db: Session = Depends(get_db), _=Depends(require_staff)):
     booking = db.query(Booking).options(
         joinedload(Booking.interview_request).joinedload(InterviewRequest.candidate),
         joinedload(Booking.slot),
@@ -143,7 +144,7 @@ def _enrich_booking(booking: Booking) -> BookingDetailOut:
 
 
 @router.post("/{booking_id}/cancel")
-def cancel_booking(booking_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def cancel_booking(booking_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db), _=Depends(require_staff)):
     booking = db.query(Booking).options(
         joinedload(Booking.interview_request).joinedload(InterviewRequest.candidate),
         joinedload(Booking.slot),
@@ -195,7 +196,7 @@ def _send_cancellations(booking_id, candidate_email, candidate_name, panelist_id
 
 
 @router.post("/{booking_id}/reschedule")
-def reschedule_booking(booking_id: str, db: Session = Depends(get_db)):
+def reschedule_booking(booking_id: str, db: Session = Depends(get_db), _=Depends(require_staff)):
     booking = db.query(Booking).options(
         joinedload(Booking.interview_request),
     ).filter(Booking.id == booking_id).first()

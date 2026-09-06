@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session, joinedload
 from app.core.database import get_db
 from app.core.config import settings
+from app.core.auth import require_staff, get_current_user
+from app.models.user import User
 from app.models.interview import InterviewRequest
 from app.models.candidate import Candidate
 from app.models.availability_slot import AvailabilitySlot
@@ -12,7 +14,8 @@ from app.services.scheduling_service import find_available_slots
 from app.services.ai_service import rank_slots, generate_invite_email
 from app.services.notification_service import send_candidate_invite
 
-router = APIRouter(prefix="/interviews", tags=["interviews"])
+# Every interview endpoint requires an authenticated staff user (recruiter/admin).
+router = APIRouter(prefix="/interviews", tags=["interviews"], dependencies=[Depends(require_staff)])
 
 
 def _upsert_candidate(db: Session, candidate_data) -> Candidate:
@@ -41,9 +44,20 @@ def list_interviews(status: Optional[str] = Query(None), limit: int = Query(50, 
 
 
 @router.post("", response_model=InterviewRequestOut, status_code=201)
-def create_interview(payload: InterviewRequestCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def create_interview(
+    payload: InterviewRequestCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     candidate = _upsert_candidate(db, payload.candidate)
     token, expires_at = generate_candidate_token()
+
+    # The requesting recruiter is the authenticated user, not a client-supplied field.
+    recruiter_email = current_user.email
+    # The scheduling/working-hours timezone defaults to the candidate's timezone
+    # unless explicitly provided.
+    preferred_timezone = payload.preferred_timezone or payload.candidate.timezone
 
     interview = InterviewRequest(
         job_title=payload.job_title,
@@ -54,8 +68,8 @@ def create_interview(payload: InterviewRequestCreate, background_tasks: Backgrou
         buffer_minutes=payload.buffer_minutes,
         window_start=payload.window_start,
         window_end=payload.window_end,
-        preferred_timezone=payload.preferred_timezone,
-        recruiter_email=payload.recruiter_email,
+        preferred_timezone=preferred_timezone,
+        recruiter_email=recruiter_email,
         candidate_link_token=token,
         token_expires_at=expires_at,
         notes=payload.notes,
@@ -71,7 +85,7 @@ def create_interview(payload: InterviewRequestCreate, background_tasks: Backgrou
         window_end=payload.window_end,
         duration_minutes=payload.duration_minutes,
         buffer_minutes=payload.buffer_minutes,
-        preferred_timezone=payload.preferred_timezone,
+        preferred_timezone=preferred_timezone,
     )
 
     ranked_slots = rank_slots(raw_slots, candidate.timezone, {})
@@ -101,7 +115,7 @@ def create_interview(payload: InterviewRequestCreate, background_tasks: Backgrou
             round_type=payload.round_type,
             token=token,
             expires_at=expires_at,
-            recruiter_email=payload.recruiter_email,
+            recruiter_email=recruiter_email,
         )
 
     return db.query(InterviewRequest).options(

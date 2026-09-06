@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from app.core.database import get_db
+from app.core.auth import require_staff, require_admin
 from app.models.panelist import Panelist
 from app.schemas.panelist import PanelistCreate, PanelistUpdate, PanelistOut
 from app.services.calendar_service import get_oauth_url, exchange_code_for_tokens
@@ -12,7 +13,7 @@ router = APIRouter(prefix="/panelists", tags=["panelists"])
 
 
 @router.get("", response_model=List[PanelistOut])
-def list_panelists(active_only: bool = Query(True), db: Session = Depends(get_db)):
+def list_panelists(active_only: bool = Query(True), db: Session = Depends(get_db), _=Depends(require_staff)):
     query = db.query(Panelist)
     if active_only:
         query = query.filter(Panelist.is_active == True)
@@ -21,7 +22,7 @@ def list_panelists(active_only: bool = Query(True), db: Session = Depends(get_db
 
 
 @router.post("", response_model=PanelistOut, status_code=201)
-def create_panelist(payload: PanelistCreate, db: Session = Depends(get_db)):
+def create_panelist(payload: PanelistCreate, db: Session = Depends(get_db), _=Depends(require_admin)):
     existing = db.query(Panelist).filter(Panelist.email == payload.email).first()
     if existing:
         if not existing.is_active:
@@ -60,7 +61,7 @@ def calendar_oauth_callback(code: str, state: str, db: Session = Depends(get_db)
 
 
 @router.get("/{panelist_id}", response_model=PanelistOut)
-def get_panelist(panelist_id: str, db: Session = Depends(get_db)):
+def get_panelist(panelist_id: str, db: Session = Depends(get_db), _=Depends(require_staff)):
     panelist = db.query(Panelist).filter(Panelist.id == panelist_id).first()
     if not panelist:
         raise HTTPException(status_code=404, detail="Panelist not found")
@@ -68,7 +69,7 @@ def get_panelist(panelist_id: str, db: Session = Depends(get_db)):
 
 
 @router.patch("/{panelist_id}", response_model=PanelistOut)
-def update_panelist(panelist_id: str, payload: PanelistUpdate, db: Session = Depends(get_db)):
+def update_panelist(panelist_id: str, payload: PanelistUpdate, db: Session = Depends(get_db), _=Depends(require_admin)):
     panelist = db.query(Panelist).filter(Panelist.id == panelist_id).first()
     if not panelist:
         raise HTTPException(status_code=404, detail="Panelist not found")
@@ -80,7 +81,7 @@ def update_panelist(panelist_id: str, payload: PanelistUpdate, db: Session = Dep
 
 
 @router.delete("/{panelist_id}", status_code=204)
-def deactivate_panelist(panelist_id: str, db: Session = Depends(get_db)):
+def deactivate_panelist(panelist_id: str, db: Session = Depends(get_db), _=Depends(require_admin)):
     panelist = db.query(Panelist).filter(Panelist.id == panelist_id).first()
     if not panelist:
         raise HTTPException(status_code=404, detail="Panelist not found")
@@ -89,7 +90,7 @@ def deactivate_panelist(panelist_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{panelist_id}/calendar-auth-url")
-def get_calendar_auth_url(panelist_id: str, db: Session = Depends(get_db)):
+def get_calendar_auth_url(panelist_id: str, db: Session = Depends(get_db), _=Depends(require_admin)):
     panelist = db.query(Panelist).filter(Panelist.id == panelist_id).first()
     if not panelist:
         raise HTTPException(status_code=404, detail="Panelist not found")

@@ -1,16 +1,39 @@
 import axios from "axios";
+import { getToken, clearAuth, isPublicPath } from "./auth";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 const api = axios.create({ baseURL: BASE, timeout: 15000 });
 
+// Attach the staff JWT to every request so the backend can authorize it.
+api.interceptors.request.use((config) => {
+  const token = getToken();
+  if (token) {
+    config.headers = config.headers ?? {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 api.interceptors.response.use(
   (r) => r,
   (err) => {
+    const status = err?.response?.status;
+    // Session expired / not authenticated → drop creds and send to login,
+    // unless we're already on a public (candidate/login) page.
+    if (status === 401 && typeof window !== "undefined" && !isPublicPath(window.location.pathname)) {
+      clearAuth();
+      window.location.href = "/login";
+    }
     const msg = err?.response?.data?.detail || err?.message || "Something went wrong";
     return Promise.reject(new Error(msg));
   }
 );
+
+// --- Auth ---
+export const login = (email: string, password: string) =>
+  api.post("/auth/login", { email, password }).then((r) => r.data);
+export const fetchMe = () => api.get("/auth/me").then((r) => r.data);
 
 // --- Panelists ---
 export const getPanelists = () => api.get("/panelists").then((r) => r.data);

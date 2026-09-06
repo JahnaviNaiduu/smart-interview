@@ -3,7 +3,25 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
+from passlib.context import CryptContext
 from app.core.config import settings
+
+# pbkdf2_sha256 is pure-python (no bcrypt/rust build), so it installs cleanly
+# everywhere while still using the project's already-declared passlib dependency.
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    if not hashed_password:
+        return False
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except (ValueError, TypeError):
+        return False
 
 
 def generate_secure_token() -> str:

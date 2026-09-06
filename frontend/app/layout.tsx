@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "../styles/globals.css";
 import { Toaster } from "react-hot-toast";
+import AuthGuard from "@/components/auth/AuthGuard";
 
 export const metadata: Metadata = {
   title: "Smart Interview Scheduler",
@@ -11,7 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="bg-black text-white antialiased">
-        {children}
+        <AuthGuard>{children}</AuthGuard>
         <Toaster
           position="top-right"
           toastOptions={{

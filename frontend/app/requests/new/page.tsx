@@ -26,8 +26,6 @@ export default function NewRequestPage() {
     buffer_minutes: 15,
     window_start: "",
     window_end: "",
-    preferred_timezone: "Asia/Kolkata",
-    recruiter_email: "",
     notes: "",
     required_panelist_ids: [] as string[],
   });
@@ -61,7 +59,7 @@ export default function NewRequestPage() {
     if (step === 1) {
       if (!form.job_title.trim()) { toast.error("Job title is required"); return false; }
       if (!form.window_start || !form.window_end) { toast.error("Interview window dates are required"); return false; }
-      if (!form.recruiter_email.trim()) { toast.error("Recruiter email is required"); return false; }
+      if (new Date(form.window_end) <= new Date(form.window_start)) { toast.error("Window end must be after window start"); return false; }
     }
     if (step === 2) {
       if (form.required_panelist_ids.length === 0) { toast.error("Select at least one panelist"); return false; }
@@ -191,10 +189,6 @@ export default function NewRequestPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-white/40 text-xs uppercase tracking-wider block mb-1.5">Recruiter Email *</label>
-                  <input className="glass-input" type="email" placeholder="recruiter@company.com" value={form.recruiter_email} onChange={(e) => setField("recruiter_email", e.target.value)} />
-                </div>
-                <div>
                   <label className="text-white/40 text-xs uppercase tracking-wider block mb-1.5">Notes (optional)</label>
                   <textarea className="glass-input min-h-[80px] resize-none" placeholder="Any additional context..." value={form.notes} onChange={(e) => setField("notes", e.target.value)} />
                 </div>
@@ -255,7 +249,6 @@ export default function NewRequestPage() {
                     ["Duration", `${form.duration_minutes} min + ${form.buffer_minutes} min buffer`],
                     ["Window", `${form.window_start} → ${form.window_end}`],
                     ["Panelists", `${form.required_panelist_ids.length} selected`],
-                    ["Recruiter", form.recruiter_email],
                   ].map(([k, v]) => (
                     <div key={k} className="flex gap-4 py-2 border-b border-white/[0.06]">
                       <span className="text-white/35 w-24 shrink-0 text-xs uppercase tracking-wider">{k}</span>
